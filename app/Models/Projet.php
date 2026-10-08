@@ -32,4 +32,10 @@ class Projet extends Model
     {
         return $this->hasMany(Tache::class);
     }
+public function chefs()
+{
+    $ids = Fonction::where('libelle', 'Chef de projet')->pluck('id');
+
+    return $this->membresActifs()->wherePivotIn('fonction_id', $ids);
+}
 }

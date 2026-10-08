@@ -1,0 +1,68 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\TacheRequest;
+use App\Models\Projet;
+use App\Models\Tache;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
+
+class TacheController extends Controller
+{
+    public function index(Projet $projet)
+    {
+        Gate::authorize('voir', $projet);
+
+        return $projet->taches()->with('responsable')->latest()->paginate(20);
+    }
+
+    public function store(TacheRequest $request, Projet $projet)
+    {
+        $tache = $projet->taches()->create($request->validated());
+
+        return response()->json($tache->load('responsable'), 201);
+    }
+
+    public function show(Tache $tache)
+    {
+        Gate::authorize('voir', $tache->projet);
+
+        return $tache->load('responsable');
+    }
+
+    public function update(TacheRequest $request, Tache $tache)
+    {
+        $tache->update($request->validated());
+
+        return $tache->load('responsable');
+    }
+
+    public function destroy(Tache $tache)
+    {
+        Gate::authorize('gerer', $tache->projet);
+        $tache->delete();
+
+        return response()->json(['message' => 'Tâche supprimée.']);
+    }
+
+    public function changerStatus(Request $request, Tache $tache)
+    {
+        $data = $request->validate([
+            'statut' => ['required', Rule::in(['en cours', 'terminé', 'annulé'])],
+        ]);
+
+        $user = $request->user();
+        $estResponsable = $tache->responsable->user_id === $user->id;
+
+        abort_unless($estResponsable || $user->can('gerer', $tache->projet), 403);
+
+        $tache->update([
+            'statut' => $data['statut'],
+            'date_echeance' => $data['statut'] === 'terminé' ? now()->toDateString() : null,
+        ]);
+
+        return $tache;
+    }
+}

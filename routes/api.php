@@ -6,12 +6,21 @@ use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\ProjetController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\TacheController;
+use App\Http\Controllers\NotificationController;
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+    Route::apiResource('projets.taches', TacheController::class)->shallow();
+    Route::patch('taches/{tache}/status', [TacheController::class, 'changerStatus']);
+
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/lu', [NotificationController::class, 'toutMarquerLu']);
+    Route::patch('notifications/{id}/lu', [NotificationController::class, 'marquerLu']);
 
     Route::apiResource('projets', ProjetController::class);
     Route::post('projets/{projet}/membres', [MembreController::class, 'store']);

@@ -4,8 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Observers\TacheObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 
+#[ObservedBy([TacheObserver::class])]
 class Tache extends Model
+
 {
     protected $fillable = [
         'projet_id', 'responsable_id', 'titre', 'description',
