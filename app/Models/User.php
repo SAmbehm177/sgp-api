@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -41,5 +42,19 @@ class User extends Authenticatable
     public function estActif(): bool
     {
         return $this->statut === 'actif';
+    }
+
+    public function estChefDeProjet(): bool
+    {
+        if (! $this->personnel) {
+            return false;
+        }
+
+        return DB::table('personnel_projet')
+            ->join('fonctions', 'fonctions.id', '=', 'personnel_projet.fonction_id')
+            ->where('personnel_projet.personnel_id', $this->personnel->id)
+            ->where('fonctions.libelle', 'Chef de projet')
+            ->whereNull('personnel_projet.date_retrait')
+            ->exists();
     }
 }

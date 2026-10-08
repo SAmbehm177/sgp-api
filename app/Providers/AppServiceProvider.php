@@ -20,5 +20,7 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('active', fn (User $user) => $user->estActif());
         Gate::define('admin', fn (User $user) => $user->estAdmin() && $user->estActif());
+        Gate::define('annuaire', fn (User $user) => $user->estActif()
+            && ($user->estAdmin() || $user->estChefDeProjet()));
     }
 }

@@ -33,7 +33,7 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
     Route::get('mes-taches', [TacheController::class, 'mesTaches']);
 
-    Route::get('personnels', [PersonnelController::class, 'index']);
+    Route::get('personnels', [PersonnelController::class, 'index'])->middleware('can:annuaire');
     Route::get('fonctions', [FonctionController::class, 'index']);
 
     Route::middleware('can:admin')->group(function () {
