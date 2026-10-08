@@ -10,6 +10,7 @@ use App\Http\Controllers\TacheController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
@@ -36,7 +37,6 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::get('fonctions', [FonctionController::class, 'index']);
 
     Route::middleware('can:admin')->group(function () {
-        Route::post('/personnels', [PersonnelController::class, 'store']);
         Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);
     });
 });

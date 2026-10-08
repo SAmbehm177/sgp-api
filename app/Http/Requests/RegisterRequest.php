@@ -5,11 +5,11 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 
-class StorePersonnelRequest extends FormRequest
+class RegisterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // l'accès admin est contrôlé par le middleware can:admin
+        return true; // inscription libre : route publique
     }
 
     public function rules(): array
@@ -27,7 +27,7 @@ class StorePersonnelRequest extends FormRequest
             'prenom' => ['required', 'string', 'max:191'],
             'poste' => ['required', 'string', 'max:191'],
             'email' => ['required', 'email', 'max:191', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ];
     }
 }
