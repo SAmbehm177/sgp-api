@@ -48,4 +48,10 @@ class ProjetController extends Controller
 
         return response()->json(['message' => 'Projet supprimé.']);
     }
+public function stats(Projet $projet)
+{
+    Gate::authorize('voir', $projet);
+
+    return $projet->statistiques();
+}
 }

@@ -26,6 +26,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('projets/{projet}/membres', [MembreController::class, 'store']);
     Route::delete('projets/{projet}/membres/{personnel}', [MembreController::class, 'retirer']);
 
+    Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
+    Route::get('mes-taches', [TacheController::class, 'mesTaches']);
+
     Route::middleware('can:admin')->group(function () {
         Route::post('/personnels', [PersonnelController::class, 'store']);
         Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);

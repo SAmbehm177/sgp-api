@@ -38,4 +38,46 @@ public function chefs()
 
     return $this->membresActifs()->wherePivotIn('fonction_id', $ids);
 }
+
+public function statistiques(): array
+{
+    $aujourdhui = now()->toDateString();
+
+    $parStatus = $this->taches()
+        ->selectRaw('statut, count(*) as total')
+        ->groupBy('statut')
+        ->pluck('total', 'statut');
+
+    $total = (int) $parStatus->sum();
+    $terminees = (int) ($parStatus['terminé'] ?? 0);
+    $annulees = (int) ($parStatus['annulé'] ?? 0);
+    $actives = $total - $annulees;
+
+    $chargeParMembre = $this->taches()
+        ->join('personnels', 'personnels.id', '=', 'taches.responsable_id')
+        ->where('taches.statut', '!=', 'annulé')
+        ->selectRaw(
+            "personnels.id as personnel_id, personnels.prenom, personnels.nom,
+             count(*) as total,
+             sum(taches.statut = 'terminé') as terminees,
+             sum(taches.statut = 'en cours') as en_cours,
+             sum(taches.statut = 'en cours' and taches.date_echeance < ?) as en_retard",
+            [$aujourdhui]
+        )
+        ->groupBy('personnels.id', 'personnels.prenom', 'personnels.nom')
+        ->get();
+
+    return [
+        'total_taches' => $total,
+        'en_cours' => (int) ($parStatus['en cours'] ?? 0),
+        'terminees' => $terminees,
+        'annulees' => $annulees,
+        'en_retard' => $this->taches()
+            ->where('status', 'en cours')
+            ->whereDate('date_echeance', '<', $aujourdhui)
+            ->count(),
+        'taux_avancement' => $actives > 0 ? round($terminees / $actives * 100, 1) : 0,
+        'charge_par_membre' => $chargeParMembre,
+    ];
+}
 }

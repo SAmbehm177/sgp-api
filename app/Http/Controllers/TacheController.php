@@ -65,4 +65,21 @@ class TacheController extends Controller
 
         return $tache;
     }
+public function mesTaches(Request $request)
+{
+    $personnel = $request->user()->personnel;
+
+    abort_unless($personnel, 404, "Aucune fiche personnel associée à ce compte.");
+
+    $query = $personnel->taches()
+        ->with('projet:id,titre')
+        ->orderBy('date_echeance');
+
+    if ($request->boolean('en_retard')) {
+        $query->where('status', 'en cours')
+            ->whereDate('date_echeance', '<', now()->toDateString());
+    }
+
+    return $query->paginate(20);
+}
 }
