@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-
 class Projet extends Model
 {
     protected $fillable = ['titre', 'description', 'date_debut', 'date_fin', 'statut'];
@@ -32,52 +31,53 @@ class Projet extends Model
     {
         return $this->hasMany(Tache::class);
     }
-public function chefs()
-{
-    $ids = Fonction::where('libelle', 'Chef de projet')->pluck('id');
 
-    return $this->membresActifs()->wherePivotIn('fonction_id', $ids);
-}
+    public function chefs()
+    {
+        $ids = Fonction::where('libelle', 'Chef de projet')->pluck('id');
 
-public function statistiques(): array
-{
-    $aujourdhui = now()->toDateString();
+        return $this->membresActifs()->wherePivotIn('fonction_id', $ids);
+    }
 
-    $parStatus = $this->taches()
-        ->selectRaw('statut, count(*) as total')
-        ->groupBy('statut')
-        ->pluck('total', 'statut');
+    public function statistiques(): array
+    {
+        $aujourdhui = now()->toDateString();
 
-    $total = (int) $parStatus->sum();
-    $terminees = (int) ($parStatus['terminé'] ?? 0);
-    $annulees = (int) ($parStatus['annulé'] ?? 0);
-    $actives = $total - $annulees;
+        $parStatut = $this->taches()
+            ->selectRaw('statut, count(*) as total')
+            ->groupBy('statut')
+            ->pluck('total', 'statut');
 
-    $chargeParMembre = $this->taches()
-        ->join('personnels', 'personnels.id', '=', 'taches.responsable_id')
-        ->where('taches.statut', '!=', 'annulé')
-        ->selectRaw(
-            "personnels.id as personnel_id, personnels.prenom, personnels.nom,
+        $total = (int) $parStatut->sum();
+        $terminees = (int) ($parStatut['terminé'] ?? 0);
+        $annulees = (int) ($parStatut['annulé'] ?? 0);
+        $actives = $total - $annulees;
+
+        $chargeParMembre = $this->taches()
+            ->join('personnels', 'personnels.id', '=', 'taches.responsable_id')
+            ->where('taches.statut', '!=', 'annulé')
+            ->selectRaw(
+                "personnels.id as personnel_id, personnels.prenom, personnels.nom,
              count(*) as total,
              sum(taches.statut = 'terminé') as terminees,
              sum(taches.statut = 'en cours') as en_cours,
              sum(taches.statut = 'en cours' and taches.date_echeance < ?) as en_retard",
-            [$aujourdhui]
-        )
-        ->groupBy('personnels.id', 'personnels.prenom', 'personnels.nom')
-        ->get();
+                [$aujourdhui]
+            )
+            ->groupBy('personnels.id', 'personnels.prenom', 'personnels.nom')
+            ->get();
 
-    return [
-        'total_taches' => $total,
-        'en_cours' => (int) ($parStatus['en cours'] ?? 0),
-        'terminees' => $terminees,
-        'annulees' => $annulees,
-        'en_retard' => $this->taches()
-            ->where('status', 'en cours')
-            ->whereDate('date_echeance', '<', $aujourdhui)
-            ->count(),
-        'taux_avancement' => $actives > 0 ? round($terminees / $actives * 100, 1) : 0,
-        'charge_par_membre' => $chargeParMembre,
-    ];
-}
+        return [
+            'total_taches' => $total,
+            'en_cours' => (int) ($parStatut['en cours'] ?? 0),
+            'terminees' => $terminees,
+            'annulees' => $annulees,
+            'en_retard' => $this->taches()
+                ->where('statut', 'en cours')
+                ->whereDate('date_echeance', '<', $aujourdhui)
+                ->count(),
+            'taux_avancement' => $actives > 0 ? round($terminees / $actives * 100, 1) : 0,
+            'charge_par_membre' => $chargeParMembre,
+        ];
+    }
 }

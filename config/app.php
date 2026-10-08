@@ -84,6 +84,12 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
+    'seed_admin' => [
+        'name' => env('SGP_ADMIN_NAME', 'Administrateur'),
+        'email' => env('SGP_ADMIN_EMAIL'),
+        'password' => env('SGP_ADMIN_PASSWORD'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

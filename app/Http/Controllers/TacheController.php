@@ -47,7 +47,7 @@ class TacheController extends Controller
         return response()->json(['message' => 'Tâche supprimée.']);
     }
 
-    public function changerStatus(Request $request, Tache $tache)
+    public function changerStatut(Request $request, Tache $tache)
     {
         $data = $request->validate([
             'statut' => ['required', Rule::in(['en cours', 'terminé', 'annulé'])],
@@ -58,28 +58,26 @@ class TacheController extends Controller
 
         abort_unless($estResponsable || $user->can('gerer', $tache->projet), 403);
 
-        $tache->update([
-            'statut' => $data['statut'],
-            'date_echeance' => $data['statut'] === 'terminé' ? now()->toDateString() : null,
-        ]);
+        $tache->update(['statut' => $data['statut']]);
 
         return $tache;
     }
-public function mesTaches(Request $request)
-{
-    $personnel = $request->user()->personnel;
 
-    abort_unless($personnel, 404, "Aucune fiche personnel associée à ce compte.");
+    public function mesTaches(Request $request)
+    {
+        $personnel = $request->user()->personnel;
 
-    $query = $personnel->taches()
-        ->with('projet:id,titre')
-        ->orderBy('date_echeance');
+        abort_unless($personnel, 404, 'Aucune fiche personnel associée à ce compte.');
 
-    if ($request->boolean('en_retard')) {
-        $query->where('status', 'en cours')
-            ->whereDate('date_echeance', '<', now()->toDateString());
+        $query = $personnel->taches()
+            ->with('projet:id,titre')
+            ->orderBy('date_echeance');
+
+        if ($request->boolean('en_retard')) {
+            $query->where('statut', 'en cours')
+                ->whereDate('date_echeance', '<', now()->toDateString());
+        }
+
+        return $query->paginate(20);
     }
-
-    return $query->paginate(20);
-}
 }

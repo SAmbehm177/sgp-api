@@ -18,6 +18,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
+        Gate::define('active', fn (User $user) => $user->estActif());
         Gate::define('admin', fn (User $user) => $user->estAdmin() && $user->estActif());
     }
 }

@@ -10,6 +10,10 @@ class ProjetPolicy
 {
     public function before(User $user): ?bool
     {
+        if (! $user->estActif()) {
+            return false;
+        }
+
         return $user->estAdmin() ? true : null;
     }
 
