@@ -3,11 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePersonnelRequest;
+use App\Models\Personnel;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class PersonnelController extends Controller
 {
+    public function index()
+    {
+        return Personnel::select('id', 'nom', 'prenom', 'poste')
+            ->orderBy('nom')
+            ->paginate(30);
+    }
+
     public function store(StorePersonnelRequest $request)
     {
         $data = $request->validated();

@@ -6,6 +6,7 @@ use App\Models\Personnel;
 use App\Models\Tache;
 use App\Notifications\TacheAffectee;
 use App\Notifications\TacheStatutModifie;
+use Illuminate\Support\Facades\Auth;
 
 class TacheObserver
 {
@@ -22,14 +23,17 @@ class TacheObserver
 
         if ($tache->wasChanged('statut')) {
             $tache->projet->chefs()->with('user')->get()
-                ->filter(fn ($chef) => $chef->user_id !== auth()->id())
+                ->filter(fn ($chef) => $chef->user_id !== Auth::id())
                 ->each(fn ($chef) => $chef->user->notify(new TacheStatutModifie($tache)));
         }
     }
 
     private function notifierResponsable(Tache $tache): void
     {
-        Personnel::with('user')->find($tache->responsable_id)
-            ?->user->notify(new TacheAffectee($tache));
+        $personnel = Personnel::with('user')->find($tache->responsable_id);
+
+        if ($personnel && $personnel->user_id !== Auth::id()) {
+            $personnel->user->notify(new TacheAffectee($tache));
+        }
     }
 }

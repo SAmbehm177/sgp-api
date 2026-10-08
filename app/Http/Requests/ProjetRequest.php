@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class ProjetRequest extends FormRequest
@@ -24,6 +25,15 @@ class ProjetRequest extends FormRequest
 
             if ($dateFin && strtotime($value) > strtotime($dateFin)) {
                 $fail('La date de début doit être antérieure ou égale à la date de fin.');
+
+                return;
+            }
+
+            $premiere = $projet ? $projet->taches()->min('date_debut') : null;
+
+            if ($premiere && strtotime($value) > strtotime($premiere)) {
+                $fail('La date de début ne peut pas être postérieure à celle de la première tâche ('
+                    .Carbon::parse($premiere)->format('d/m/Y').') : modifiez d\'abord les tâches concernées.');
             }
         };
 
@@ -32,6 +42,15 @@ class ProjetRequest extends FormRequest
 
             if ($dateDebut && strtotime($value) < strtotime($dateDebut)) {
                 $fail('La date de fin doit être postérieure ou égale à la date de début.');
+
+                return;
+            }
+
+            $derniere = $projet ? $projet->taches()->max('date_echeance') : null;
+
+            if ($derniere && strtotime($value) < strtotime($derniere)) {
+                $fail('La date de fin ne peut pas être antérieure à l\'échéance de la dernière tâche ('
+                    .Carbon::parse($derniere)->format('d/m/Y').') : modifiez d\'abord les tâches concernées.');
             }
         };
 

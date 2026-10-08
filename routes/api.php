@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\FonctionController;
 use App\Http\Controllers\MembreController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonnelController;
@@ -30,6 +31,9 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
 
     Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
     Route::get('mes-taches', [TacheController::class, 'mesTaches']);
+
+    Route::get('personnels', [PersonnelController::class, 'index']);
+    Route::get('fonctions', [FonctionController::class, 'index']);
 
     Route::middleware('can:admin')->group(function () {
         Route::post('/personnels', [PersonnelController::class, 'store']);

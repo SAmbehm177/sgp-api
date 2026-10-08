@@ -18,12 +18,14 @@ class TacheController extends Controller
         return $projet->taches()->with('responsable')->latest()->paginate(20);
     }
 
-    public function store(TacheRequest $request, Projet $projet)
-    {
-        $tache = $projet->taches()->create($request->validated());
+public function store(TacheRequest $request, Projet $projet)
+{
+    abort_if($projet->statut !== 'en cours', 422, "Ce projet est clos : impossible d'ajouter une tâche.");
 
-        return response()->json($tache->load('responsable'), 201);
-    }
+    $tache = $projet->taches()->create($request->validated());
+
+    return response()->json($tache->load('responsable'), 201);
+}
 
     public function show(Tache $tache)
     {

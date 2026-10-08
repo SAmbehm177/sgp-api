@@ -37,29 +37,37 @@ class MembreController extends Controller
         return response()->json($projet->load('membresActifs'), 201);
     }
 
-    public function retirer(Projet $projet, Personnel $personnel)
-    {
-        Gate::authorize('gerer', $projet);
+public function retirer(Projet $projet, Personnel $personnel)
+{
+    Gate::authorize('gerer', $projet);
 
-        $actif = $projet->membresActifs()->where('personnels.id', $personnel->id)->exists();
+    $actif = $projet->membresActifs()->where('personnels.id', $personnel->id)->exists();
 
-        if (! $actif) {
-            return response()->json(['message' => "Ce personnel n'est pas membre actif du projet."], 404);
-        }
-
-        $tachesOuvertes = Tache::where('projet_id', $projet->id)
-            ->where('responsable_id', $personnel->id)
-            ->where('statut', 'en cours')
-            ->exists();
-
-        if ($tachesOuvertes) {
-            return response()->json([
-                'message' => 'Ce membre a encore des tâches en cours : réaffectez-les ou terminez-les avant de le retirer.',
-            ], 422);
-        }
-
-        $projet->membres()->updateExistingPivot($personnel->id, ['date_retrait' => now()->toDateString()]);
-
-        return response()->json(['message' => 'Membre retiré du projet.']);
+    if (! $actif) {
+        return response()->json(['message' => "Ce personnel n'est pas membre actif du projet."], 404);
     }
+
+    $estChef = $projet->chefs()->where('personnels.id', $personnel->id)->exists();
+
+    if ($estChef && $projet->chefs()->count() <= 1) {
+        return response()->json([
+            'message' => 'Un projet doit conserver au moins un chef de projet.',
+        ], 422);
+    }
+
+    $tachesOuvertes = Tache::where('projet_id', $projet->id)
+        ->where('responsable_id', $personnel->id)
+        ->where('statut', 'en cours')
+        ->exists();
+
+    if ($tachesOuvertes) {
+        return response()->json([
+            'message' => 'Ce membre a encore des tâches en cours : réaffectez-les ou terminez-les avant de le retirer.',
+        ], 422);
+    }
+
+    $projet->membres()->updateExistingPivot($personnel->id, ['date_retrait' => now()->toDateString()]);
+
+    return response()->json(['message' => 'Membre retiré du projet.']);
+}
 }
