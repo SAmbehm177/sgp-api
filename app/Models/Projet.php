@@ -12,7 +12,7 @@ class Projet extends Model
 
     protected function casts(): array
     {
-        return ['date_debut' => 'date', 'date_fin' => 'date'];
+        return ['date_debut' => 'date:Y-m-d', 'date_fin' => 'date:Y-m-d'];
     }
 
     public function membres(): BelongsToMany
@@ -78,6 +78,10 @@ class Projet extends Model
                 ->count(),
             'taux_avancement' => $actives > 0 ? round($terminees / $actives * 100, 1) : 0,
             'charge_par_membre' => $chargeParMembre,
+                'par_priorite' => $this->taches()
+                ->selectRaw('priorite, count(*) as total')
+                ->groupBy('priorite')
+                ->pluck('total', 'priorite'),
         ];
     }
 }

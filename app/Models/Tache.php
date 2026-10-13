@@ -18,10 +18,10 @@ class Tache extends Model
 
     protected function casts(): array
     {
-        return [
-            'date_debut' => 'date',
-            'date_echeance' => 'date',
-        ];
+return [
+    'date_debut' => 'date:Y-m-d',
+    'date_echeance' => 'date:Y-m-d',
+];
     }
 
     public function projet(): BelongsTo

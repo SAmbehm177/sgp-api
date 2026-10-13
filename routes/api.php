@@ -37,6 +37,8 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::get('fonctions', [FonctionController::class, 'index']);
 
     Route::middleware('can:admin')->group(function () {
+        Route::get('/taches', [TacheController::class, 'enCours']);
+        Route::get('/users', [UserController::class, 'index']);
         Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);
     });
 });

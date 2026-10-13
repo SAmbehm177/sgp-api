@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Fonction;
 use App\Models\Personnel;
 use App\Models\Projet;
 use App\Models\Tache;
@@ -76,6 +77,36 @@ class ProjectManagementApiTest extends TestCase
         $this->patchJson('/api/projets/'.$projet->id, ['titre' => 'Titre modifié'])
             ->assertOk()
             ->assertJsonPath('titre', 'Titre modifié');
+    }
+
+    public function test_tasks_cannot_be_added_to_a_completed_project_until_it_is_reopened(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel($admin);
+        $projet = $this->createProjet();
+        $fonction = Fonction::create(['libelle' => 'Chef de projet']);
+        $projet->membres()->attach($personnel->id, ['fonction_id' => $fonction->id]);
+
+        Sanctum::actingAs($admin);
+
+        $projet->update(['statut' => 'terminé']);
+        $data = [
+            'titre' => 'Nouvelle tâche',
+            'description' => 'Description de test',
+            'date_debut' => '2026-01-01',
+            'date_echeance' => '2026-02-01',
+            'responsable_id' => $personnel->id,
+        ];
+
+        $this->postJson('/api/projets/'.$projet->id.'/taches', $data)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Ce projet est terminé : passez son statut à « En cours » pour pouvoir y ajouter des tâches.');
+
+        $projet->update(['statut' => 'en cours']);
+
+        $this->postJson('/api/projets/'.$projet->id.'/taches', $data)
+            ->assertCreated()
+            ->assertJsonPath('titre', 'Nouvelle tâche');
     }
 
     public function test_duplicate_personnel_names_are_allowed_but_oversized_full_names_are_rejected(): void

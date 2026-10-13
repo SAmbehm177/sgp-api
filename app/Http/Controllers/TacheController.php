@@ -20,7 +20,13 @@ class TacheController extends Controller
 
 public function store(TacheRequest $request, Projet $projet)
 {
-    abort_if($projet->statut !== 'en cours', 422, "Ce projet est clos : impossible d'ajouter une tâche.");
+    if (in_array($projet->statut, ['terminé', 'annulé'], true)) {
+        $message = $projet->statut === 'terminé'
+            ? 'Ce projet est terminé : passez son statut à « En cours » pour pouvoir y ajouter des tâches.'
+            : "Ce projet est annulé : impossible d'ajouter une tâche.";
+
+        abort(422, $message);
+    }
 
     $tache = $projet->taches()->create($request->validated());
 
@@ -63,6 +69,15 @@ public function store(TacheRequest $request, Projet $projet)
         $tache->update(['statut' => $data['statut']]);
 
         return $tache;
+    }
+
+    // Tâches en cours de tous les projets, par échéance (route réservée à l'admin)
+    public function enCours()
+    {
+        return Tache::with(['projet:id,titre', 'responsable:id,nom,prenom'])
+            ->where('statut', 'en cours')
+            ->orderBy('date_echeance')
+            ->paginate(20);
     }
 
     public function mesTaches(Request $request)

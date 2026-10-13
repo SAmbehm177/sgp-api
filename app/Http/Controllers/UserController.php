@@ -8,6 +8,13 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    public function index()
+    {
+        return User::with('personnel:id,user_id,nom,prenom,poste')
+            ->orderBy('name')
+            ->paginate(50);
+    }
+
     public function changerStatus(Request $request, User $user)
     {
         $data = $request->validate([

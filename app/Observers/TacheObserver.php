@@ -13,6 +13,7 @@ class TacheObserver
     public function created(Tache $tache): void
     {
         $this->notifierResponsable($tache);
+        $this->synchroniserStatutProjet($tache);
     }
 
     public function updated(Tache $tache): void
@@ -25,7 +26,14 @@ class TacheObserver
             $tache->projet->chefs()->with('user')->get()
                 ->filter(fn ($chef) => $chef->user_id !== Auth::id())
                 ->each(fn ($chef) => $chef->user->notify(new TacheStatutModifie($tache)));
+
+            $this->synchroniserStatutProjet($tache);
         }
+    }
+
+    public function deleted(Tache $tache): void
+    {
+        $this->synchroniserStatutProjet($tache);
     }
 
     private function notifierResponsable(Tache $tache): void
@@ -34,6 +42,34 @@ class TacheObserver
 
         if ($personnel && $personnel->user_id !== Auth::id()) {
             $personnel->user->notify(new TacheAffectee($tache));
+        }
+    }
+
+    /**
+     * Le statut du projet suit celui de ses tâches :
+     * « terminé » quand toutes les tâches non annulées sont terminées,
+     * « en cours » dès qu'il en reste une ouverte.
+     * Un projet annulé n'est jamais modifié automatiquement.
+     */
+    private function synchroniserStatutProjet(Tache $tache): void
+    {
+        $projet = $tache->projet;
+
+        if (! $projet || $projet->statut === 'annulé') {
+            return;
+        }
+
+        $actives = $projet->taches()->where('statut', '!=', 'annulé')->count();
+
+        if ($actives === 0) {
+            return;
+        }
+
+        $terminees = $projet->taches()->where('statut', 'terminé')->count();
+        $statut = $terminees === $actives ? 'terminé' : 'en cours';
+
+        if ($projet->statut !== $statut) {
+            $projet->update(['statut' => $statut]);
         }
     }
 }
