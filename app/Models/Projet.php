@@ -32,6 +32,11 @@ class Projet extends Model
         return $this->hasMany(Tache::class);
     }
 
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class);
+    }
+
     public function chefs()
     {
         $ids = Fonction::where('libelle', 'Chef de projet')->pluck('id');

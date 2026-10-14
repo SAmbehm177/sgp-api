@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FonctionController;
 use App\Http\Controllers\MembreController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\ProjetController;
@@ -29,6 +30,10 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::apiResource('projets', ProjetController::class);
     Route::post('projets/{projet}/membres', [MembreController::class, 'store']);
     Route::delete('projets/{projet}/membres/{personnel}', [MembreController::class, 'retirer']);
+
+    Route::get('projets/{projet}/messages', [MessageController::class, 'index']);
+    Route::post('projets/{projet}/messages', [MessageController::class, 'store'])->middleware('throttle:30,1');
+    Route::delete('messages/{message}', [MessageController::class, 'destroy']);
 
     Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
     Route::get('mes-taches', [TacheController::class, 'mesTaches']);
