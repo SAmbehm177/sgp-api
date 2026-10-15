@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\Projet;
+use App\Notifications\NouveauMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -29,6 +30,13 @@ class MessageController extends Controller
             'avant_id' => ['nullable', 'integer', 'min:0'],
             'apres_id' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        // Ouvrir la discussion vaut lecture : les notifications de nouveaux messages du projet sont marquées lues
+        $request->user()->unreadNotifications()
+            ->where('type', NouveauMessage::class)
+            ->get()
+            ->filter(fn ($n) => (int) ($n->data['projet_id'] ?? 0) === $projet->id)
+            ->each->markAsRead();
 
         $query = $projet->messages()->with(self::AUTEUR);
 
