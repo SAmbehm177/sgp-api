@@ -59,7 +59,15 @@ class ProjetRequest extends FormRequest
             'description' => ['sometimes', 'nullable', 'string'],
             'date_debut' => [$required, 'date', $dateDebut],
             'date_fin' => [$required, 'date', $dateFin],
-            'statut' => ['sometimes', Rule::in(['en cours', 'terminé', 'annulé'])],
+            'statut' => [
+                'sometimes',
+                Rule::in(['en cours', 'terminé', 'annulé']),
+                function ($attribute, $value, $fail) use ($projet): void {
+                    if ($value === 'terminé' && $projet && $projet->taches()->where('statut', 'en cours')->exists()) {
+                        $fail('Impossible de terminer le projet : il reste des tâches en cours.');
+                    }
+                },
+            ],
         ];
     }
 }

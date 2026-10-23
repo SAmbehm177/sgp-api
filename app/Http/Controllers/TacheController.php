@@ -64,7 +64,12 @@ public function store(TacheRequest $request, Projet $projet)
         $user = $request->user();
         $estResponsable = $tache->responsable->user_id === $user->id;
 
-        abort_unless($estResponsable || $user->can('gerer', $tache->projet), 403);
+        // Il faut être membre actif du projet (ou admin) : un membre retiré ne peut plus agir sur ses anciennes tâches
+        abort_unless(
+            $user->can('voir', $tache->projet)
+                && ($estResponsable || $user->can('gerer', $tache->projet)),
+            403
+        );
 
         $tache->update(['statut' => $data['statut']]);
 

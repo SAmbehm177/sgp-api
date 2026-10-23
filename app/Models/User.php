@@ -53,7 +53,7 @@ class User extends Authenticatable
         return DB::table('personnel_projet')
             ->join('fonctions', 'fonctions.id', '=', 'personnel_projet.fonction_id')
             ->where('personnel_projet.personnel_id', $this->personnel->id)
-            ->where('fonctions.libelle', 'Chef de projet')
+            ->where('fonctions.libelle', Fonction::CHEF_DE_PROJET)
             ->whereNull('personnel_projet.date_retrait')
             ->exists();
     }

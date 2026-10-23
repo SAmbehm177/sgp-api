@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\Fonction;
 use App\Models\Projet;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class ProjetPolicy
 
     public function gerer(User $user, Projet $projet): bool
     {
-        return $this->affectation($user, $projet)?->libelle === 'Chef de projet';
+        return $this->affectation($user, $projet)?->libelle === Fonction::CHEF_DE_PROJET;
     }
 
     private function affectation(User $user, Projet $projet): ?object

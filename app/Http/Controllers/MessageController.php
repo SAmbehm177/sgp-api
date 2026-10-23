@@ -34,9 +34,8 @@ class MessageController extends Controller
         // Ouvrir la discussion vaut lecture : les notifications de nouveaux messages du projet sont marquées lues
         $request->user()->unreadNotifications()
             ->where('type', NouveauMessage::class)
-            ->get()
-            ->filter(fn ($n) => (int) ($n->data['projet_id'] ?? 0) === $projet->id)
-            ->each->markAsRead();
+            ->where('data->projet_id', $projet->id)
+            ->update(['read_at' => now()]);
 
         $query = $projet->messages()->with(self::AUTEUR);
 

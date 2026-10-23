@@ -10,6 +10,7 @@ use App\Notifications\MembreAjoute;
 use App\Notifications\MembreRetire;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class MembreController extends Controller
@@ -23,28 +24,38 @@ class MembreController extends Controller
             'fonction_id' => ['required', 'exists:fonctions,id'],
         ]);
 
-        $existant = $projet->membres()->where('personnels.id', $data['personnel_id'])->first();
+        $fonction = Fonction::findOrFail($data['fonction_id']);
 
-        if ($existant && $existant->pivot->date_retrait === null) {
-            return response()->json(['message' => 'Ce personnel est déjà membre du projet.'], 422);
-        }
+        // Vérification + écriture dans une même transaction, avec un verrou sur la ligne du projet :
+        // deux ajouts simultanés ne peuvent plus créer deux chefs de projet.
+        $erreur = DB::transaction(function () use ($projet, $data, $fonction): ?string {
+            Projet::whereKey($projet->id)->lockForUpdate()->first();
 
-        $fonction = Fonction::find($data['fonction_id']);
+            $existant = $projet->membres()->where('personnels.id', $data['personnel_id'])->first();
 
-        // Un projet n'a qu'un seul chef de projet actif
-        if ($fonction->libelle === 'Chef de projet' && $projet->chefs()->exists()) {
-            return response()->json([
-                'message' => 'Ce projet a déjà un chef de projet : retirez-le avant d\'en désigner un autre.',
-            ], 422);
-        }
+            if ($existant && $existant->pivot->date_retrait === null) {
+                return 'Ce personnel est déjà membre du projet.';
+            }
 
-        if ($existant) {
-            $projet->membres()->updateExistingPivot($data['personnel_id'], [
-                'fonction_id' => $data['fonction_id'],
-                'date_retrait' => null,
-            ]);
-        } else {
-            $projet->membres()->attach($data['personnel_id'], ['fonction_id' => $data['fonction_id']]);
+            // Un projet n'a qu'un seul chef de projet actif
+            if ($fonction->libelle === Fonction::CHEF_DE_PROJET && $projet->chefs()->exists()) {
+                return 'Ce projet a déjà un chef de projet : retirez-le avant d\'en désigner un autre.';
+            }
+
+            if ($existant) {
+                $projet->membres()->updateExistingPivot($data['personnel_id'], [
+                    'fonction_id' => $data['fonction_id'],
+                    'date_retrait' => null,
+                ]);
+            } else {
+                $projet->membres()->attach($data['personnel_id'], ['fonction_id' => $data['fonction_id']]);
+            }
+
+            return null;
+        });
+
+        if ($erreur !== null) {
+            return response()->json(['message' => $erreur], 422);
         }
 
         // Prévient la personne ajoutée (sauf si c'est elle-même qui agit)
@@ -70,7 +81,7 @@ class MembreController extends Controller
         $estChef = $projet->chefs()->where('personnels.id', $personnel->id)->exists();
 
         // Seul l'administrateur peut retirer l'unique chef (pour en désigner un nouveau ensuite)
-        if ($estChef && ! Auth::user()->is_admin) {
+        if ($estChef && ! Auth::user()->estAdmin()) {
             return response()->json([
                 'message' => 'Seul un administrateur peut retirer le chef de projet.',
             ], 422);

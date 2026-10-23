@@ -61,7 +61,12 @@ class TacheObserver
 
         $actives = $projet->taches()->where('statut', '!=', 'annulé')->count();
 
+        // Plus aucune tâche active : un projet ne peut pas rester « terminé »
         if ($actives === 0) {
+            if ($projet->statut === 'terminé') {
+                $projet->update(['statut' => 'en cours']);
+            }
+
             return;
         }
 

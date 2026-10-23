@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProjetRequest;
+use App\Models\Fonction;
 use App\Models\Projet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +43,7 @@ public function index(Request $request)
         ->join('personnels', 'personnels.id', '=', 'personnel_projet.personnel_id')
         ->join('fonctions', 'fonctions.id', '=', 'personnel_projet.fonction_id')
         ->whereIn('personnel_projet.projet_id', $page->getCollection()->pluck('id'))
-        ->where('fonctions.libelle', 'Chef de projet')
+        ->where('fonctions.libelle', Fonction::CHEF_DE_PROJET)
         ->whereNull('personnel_projet.date_retrait')
         ->orderBy('personnels.nom')
         ->get(['personnel_projet.projet_id', 'personnels.prenom', 'personnels.nom'])

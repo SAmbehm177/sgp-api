@@ -39,7 +39,7 @@ class Projet extends Model
 
     public function chefs()
     {
-        $ids = Fonction::where('libelle', 'Chef de projet')->pluck('id');
+        $ids = Fonction::where('libelle', Fonction::CHEF_DE_PROJET)->pluck('id');
 
         return $this->membresActifs()->wherePivotIn('fonction_id', $ids);
     }

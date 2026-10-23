@@ -25,8 +25,8 @@ class MessageObserver
     {
         $existante = $user->unreadNotifications()
             ->where('type', NouveauMessage::class)
-            ->get()
-            ->first(fn ($n) => (int) ($n->data['projet_id'] ?? 0) === $projet->id);
+            ->where('data->projet_id', $projet->id)
+            ->first();
 
         if (! $existante) {
             $user->notify(new NouveauMessage($projet, $message));

@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
         }
 
         Fonction::updateOrCreate(
-            ['libelle' => 'Chef de projet'],
+            ['libelle' => Fonction::CHEF_DE_PROJET],
             ['description' => 'Pilote le projet']
         );
 
