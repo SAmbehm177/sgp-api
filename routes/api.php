@@ -11,7 +11,6 @@ use App\Http\Controllers\TacheController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
@@ -44,6 +43,9 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::middleware('can:admin')->group(function () {
         Route::get('/taches', [TacheController::class, 'enCours']);
         Route::get('/users', [UserController::class, 'index']);
+        Route::post('/personnels', [PersonnelController::class, 'store']);
+        Route::patch('/personnels/{personnel}', [PersonnelController::class, 'update']);
+        Route::post('/personnels/{personnel}/acces', [PersonnelController::class, 'accorderAcces']);
         Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);
     });
 });

@@ -10,7 +10,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        return User::with('personnel:id,user_id,nom,prenom,poste')
+        return User::with('personnel:id,user_id,nom,prenom,matricule,poste')
             ->orderBy('name')
             ->paginate(50);
     }

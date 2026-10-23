@@ -36,7 +36,7 @@ class MessageObserver
 
         // Regroupement : même notification, compteur incrémenté, remontée en tête de liste
         $existante->update([
-            'data' => NouveauMessage::donnees($projet, $message, ((int) ($existante->data['nombre'] ?? 1)) + 1),
+            'data' => NouveauMessage::donnees($projet, $message, ((int) ($existante->data['nombre'] ?? 1)) + 1, $user->id),
             'created_at' => now(),
         ]);
     }

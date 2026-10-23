@@ -21,7 +21,7 @@ class NouveauMessage extends Notification
 
     public function toArray(object $notifiable): array
     {
-        return self::donnees($this->projet, $this->message, $this->nombre);
+        return self::donnees($this->projet, $this->message, $this->nombre, $notifiable->id ?? null);
     }
 
     /**
@@ -29,12 +29,15 @@ class NouveauMessage extends Notification
      * tant qu'elle n'est pas lue, les messages suivants la mettent à jour (compteur + dernier message)
      * au lieu d'en créer une nouvelle.
      */
-    public static function donnees(Projet $projet, Message $message, int $nombre): array
+    public static function donnees(Projet $projet, Message $message, int $nombre, ?int $userId = null): array
     {
         $auteur = $message->auteur;
         $nom = $auteur->personnel
             ? trim($auteur->personnel->prenom.' '.$auteur->personnel->nom)
             : $auteur->name;
+
+        // Tout le projet est notifié ; le destinataire éventuel du message est interpellé directement
+        $verbe = ($userId !== null && $message->destinataire_id !== null && (int) $message->destinataire_id === $userId) ? 'vous a écrit' : 'a écrit';
 
         return [
             'type' => 'nouveau_message',
@@ -43,7 +46,7 @@ class NouveauMessage extends Notification
             'message_id' => $message->id,
             'nombre' => $nombre,
             'message' => $nombre === 1
-                ? "{$nom} a écrit dans « {$projet->titre} » : ".Str::limit(Str::squish($message->contenu), 80)
+                ? "{$nom} {$verbe} dans « {$projet->titre} » : ".Str::limit(Str::squish($message->contenu), 80)
                 : "{$nombre} nouveaux messages dans « {$projet->titre} »",
         ];
     }

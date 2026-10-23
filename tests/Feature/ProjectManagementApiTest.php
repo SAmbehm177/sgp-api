@@ -161,6 +161,7 @@ class ProjectManagementApiTest extends TestCase
         return Personnel::create([
             'nom' => 'Martin',
             'prenom' => 'Alex',
+            'matricule' => 'MAT-'.$user->id,
             'poste' => 'Membre',
             'user_id' => $user->id,
         ]);

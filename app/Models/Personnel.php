@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Personnel extends Model
 {
-    protected $fillable = ['nom', 'prenom', 'poste', 'user_id'];
+    protected $fillable = ['nom', 'prenom', 'matricule', 'poste', 'user_id'];
 
     public function user(): BelongsTo
     {

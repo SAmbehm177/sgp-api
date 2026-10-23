@@ -7,6 +7,7 @@ use App\Models\Projet;
 use App\Notifications\NouveauMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class MessageController extends Controller
 {
@@ -14,6 +15,8 @@ class MessageController extends Controller
 
     // Relations chargées avec chaque message (l'e-mail de l'auteur n'est volontairement pas exposé)
     private const AUTEUR = ['auteur:id,name', 'auteur.personnel:id,user_id,nom,prenom'];
+
+    private const DESTINATAIRE = ['destinataire:id,name', 'destinataire.personnel:id,user_id,nom,prenom'];
 
     /**
      * GET /projets/{projet}/messages
@@ -37,7 +40,7 @@ class MessageController extends Controller
             ->where('data->projet_id', $projet->id)
             ->update(['read_at' => now()]);
 
-        $query = $projet->messages()->with(self::AUTEUR);
+        $query = $projet->messages()->with([...self::AUTEUR, ...self::DESTINATAIRE]);
 
         if ($request->filled('apres_id')) {
             return [
@@ -66,14 +69,29 @@ class MessageController extends Controller
 
         $data = $request->validate([
             'contenu' => ['required', 'string', 'max:2000'],
+            'destinataire_id' => ['nullable', 'integer'],
         ]);
+
+        // Destinataire facultatif : un autre membre actif du projet (sans destinataire = tout le projet)
+        $destinataireId = isset($data['destinataire_id']) ? (int) $data['destinataire_id'] : null;
+
+        if ($destinataireId !== null) {
+            $estMembreActif = $projet->membresActifs()->where('personnels.user_id', $destinataireId)->exists();
+
+            if ($destinataireId === $request->user()->id || ! $estMembreActif) {
+                throw ValidationException::withMessages([
+                    'destinataire_id' => ['Le destinataire doit être un autre membre actif du projet.'],
+                ]);
+            }
+        }
 
         $message = $projet->messages()->create([
             'user_id' => $request->user()->id,
+            'destinataire_id' => $destinataireId,
             'contenu' => $data['contenu'],
         ]);
 
-        return response()->json($message->load(self::AUTEUR), 201);
+        return response()->json($message->load([...self::AUTEUR, ...self::DESTINATAIRE]), 201);
     }
 
     // DELETE /messages/{message} : l'auteur, un chef de projet du projet ou l'admin

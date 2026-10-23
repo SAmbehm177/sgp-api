@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ObservedBy([MessageObserver::class])]
 class Message extends Model
 {
-    protected $fillable = ['projet_id', 'user_id', 'contenu'];
+    protected $fillable = ['projet_id', 'user_id', 'destinataire_id', 'contenu'];
 
     public function projet(): BelongsTo
     {
@@ -20,5 +20,11 @@ class Message extends Model
     public function auteur(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    // Destinataire facultatif (RECEVOIR 0,1) : le message reste visible par tous les membres du projet
+    public function destinataire(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'destinataire_id');
     }
 }

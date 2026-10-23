@@ -25,7 +25,7 @@ class TacheObserver
         if ($tache->wasChanged('statut')) {
             $tache->projet->chefs()->with('user')->get()
                 ->filter(fn ($chef) => $chef->user_id !== Auth::id())
-                ->each(fn ($chef) => $chef->user->notify(new TacheStatutModifie($tache)));
+                ->each(fn ($chef) => $chef->user?->notify(new TacheStatutModifie($tache)));
 
             $this->synchroniserStatutProjet($tache);
         }
@@ -40,7 +40,8 @@ class TacheObserver
     {
         $personnel = Personnel::with('user')->find($tache->responsable_id);
 
-        if ($personnel && $personnel->user_id !== Auth::id()) {
+        // Un personnel sans compte n'a personne à notifier
+        if ($personnel?->user && $personnel->user_id !== Auth::id()) {
             $personnel->user->notify(new TacheAffectee($tache));
         }
     }
