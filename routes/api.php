@@ -16,36 +16,39 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,
 Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/password', [AuthController::class, 'changerMotDePasse'])->middleware('throttle:5,1');
 
-    Route::apiResource('projets.taches', TacheController::class)
-        ->shallow()
-        ->parameters(['taches' => 'tache']);
-    Route::patch('taches/{tache}/status', [TacheController::class, 'changerStatut']);
+    Route::middleware('can:mdp-a-jour')->group(function () {
+        Route::apiResource('projets.taches', TacheController::class)
+            ->shallow()
+            ->parameters(['taches' => 'tache']);
+        Route::patch('taches/{tache}/status', [TacheController::class, 'changerStatut']);
 
-    Route::get('notifications', [NotificationController::class, 'index']);
-    Route::post('notifications/lu', [NotificationController::class, 'toutMarquerLu']);
-    Route::patch('notifications/{id}/lu', [NotificationController::class, 'marquerLu']);
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::post('notifications/lu', [NotificationController::class, 'toutMarquerLu']);
+        Route::patch('notifications/{id}/lu', [NotificationController::class, 'marquerLu']);
 
-    Route::apiResource('projets', ProjetController::class);
-    Route::post('projets/{projet}/membres', [MembreController::class, 'store']);
-    Route::delete('projets/{projet}/membres/{personnel}', [MembreController::class, 'retirer']);
+        Route::apiResource('projets', ProjetController::class);
+        Route::post('projets/{projet}/membres', [MembreController::class, 'store']);
+        Route::delete('projets/{projet}/membres/{personnel}', [MembreController::class, 'retirer']);
 
-    Route::get('projets/{projet}/messages', [MessageController::class, 'index']);
-    Route::post('projets/{projet}/messages', [MessageController::class, 'store'])->middleware('throttle:30,1');
-    Route::delete('messages/{message}', [MessageController::class, 'destroy']);
+        Route::get('projets/{projet}/messages', [MessageController::class, 'index']);
+        Route::post('projets/{projet}/messages', [MessageController::class, 'store'])->middleware('throttle:30,1');
+        Route::delete('messages/{message}', [MessageController::class, 'destroy']);
 
-    Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
-    Route::get('mes-taches', [TacheController::class, 'mesTaches']);
+        Route::get('projets/{projet}/stats', [ProjetController::class, 'stats']);
+        Route::get('mes-taches', [TacheController::class, 'mesTaches']);
 
-    Route::get('personnels', [PersonnelController::class, 'index'])->middleware('can:annuaire');
-    Route::get('fonctions', [FonctionController::class, 'index']);
+        Route::get('personnels', [PersonnelController::class, 'index'])->middleware('can:annuaire');
+        Route::get('fonctions', [FonctionController::class, 'index']);
 
-    Route::middleware('can:admin')->group(function () {
-        Route::get('/taches', [TacheController::class, 'enCours']);
-        Route::get('/users', [UserController::class, 'index']);
-        Route::post('/personnels', [PersonnelController::class, 'store']);
-        Route::patch('/personnels/{personnel}', [PersonnelController::class, 'update']);
-        Route::post('/personnels/{personnel}/acces', [PersonnelController::class, 'accorderAcces']);
-        Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);
+        Route::middleware('can:admin')->group(function () {
+            Route::get('/taches', [TacheController::class, 'enCours']);
+            Route::get('/users', [UserController::class, 'index']);
+            Route::post('/personnels', [PersonnelController::class, 'store']);
+            Route::patch('/personnels/{personnel}', [PersonnelController::class, 'update']);
+            Route::post('/personnels/{personnel}/acces', [PersonnelController::class, 'accorderAcces']);
+            Route::patch('/users/{user}/status', [UserController::class, 'changerStatus']);
+        });
     });
 });

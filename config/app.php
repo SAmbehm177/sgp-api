@@ -78,11 +78,12 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // Application en français : messages de validation et d'erreur traduits (dossier lang/)
+    'locale' => 'fr',
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
-    'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
+    'faker_locale' => env('APP_FAKER_LOCALE', 'fr_FR'),
 
     'seed_admin' => [
         'name' => env('SGP_ADMIN_NAME', 'Administrateur'),

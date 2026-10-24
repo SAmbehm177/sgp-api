@@ -94,9 +94,11 @@ class PersonnelController extends Controller
                 'password' => $data['password'],
             ]);
 
-            if (($data['role'] ?? 'user') === 'admin') {
-                $user->forceFill(['role' => 'admin'])->save();
-            }
+            // Mot de passe provisoire : l'utilisateur devra le remplacer dès sa première connexion
+            $user->forceFill([
+                'role' => ($data['role'] ?? 'user') === 'admin' ? 'admin' : 'user',
+                'must_change_password' => true,
+            ])->save();
 
             $fiche->update(['user_id' => $user->id]);
 
