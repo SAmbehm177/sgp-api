@@ -80,10 +80,15 @@ class MembreController extends Controller
 
         $estChef = $projet->chefs()->where('personnels.id', $personnel->id)->exists();
 
-        // Seul l'administrateur peut retirer l'unique chef (pour en désigner un nouveau ensuite)
         if ($estChef && ! Auth::user()->estAdmin()) {
             return response()->json([
                 'message' => 'Seul un administrateur peut retirer le chef de projet.',
+            ], 422);
+        }
+
+        if ($estChef) {
+            return response()->json([
+                'message' => 'Transférez le rôle à un membre actif avant de retirer le chef de projet.',
             ], 422);
         }
 
@@ -108,5 +113,73 @@ class MembreController extends Controller
         }
 
         return response()->json(['message' => 'Membre retiré du projet.']);
+    }
+
+    public function transfererChef(Request $request, Projet $projet)
+    {
+        abort_unless(Auth::user()->estAdmin(), 403, 'Seul un administrateur peut transférer le rôle de chef de projet.');
+
+        $data = $request->validate([
+            'ancien_chef_id' => ['required', 'integer', 'different:nouveau_chef_id', 'exists:personnels,id'],
+            'nouveau_chef_id' => ['required', 'integer', 'exists:personnels,id'],
+        ]);
+
+        $resultat = DB::transaction(function () use ($projet, $data): array {
+            $projet = Projet::whereKey($projet->id)->lockForUpdate()->firstOrFail();
+            $fonctionChef = Fonction::where('libelle', Fonction::CHEF_DE_PROJET)->first();
+
+            if (! $fonctionChef) {
+                return ['status' => 422, 'message' => 'La fonction « Chef de projet » est introuvable.'];
+            }
+
+            $ancienChefActif = $projet->chefs()
+                ->where('personnels.id', $data['ancien_chef_id'])
+                ->exists();
+
+            if (! $ancienChefActif) {
+                return ['status' => 422, 'message' => 'Le membre à retirer n’est pas le chef actif de ce projet.'];
+            }
+
+            $nouveauChefActif = $projet->membresActifs()
+                ->where('personnels.id', $data['nouveau_chef_id'])
+                ->exists();
+
+            if (! $nouveauChefActif) {
+                return ['status' => 422, 'message' => 'Le nouveau chef doit être un membre actif de ce projet.'];
+            }
+
+            $tachesOuvertes = Tache::where('projet_id', $projet->id)
+                ->where('responsable_id', $data['ancien_chef_id'])
+                ->where('statut', 'en cours')
+                ->exists();
+
+            if ($tachesOuvertes) {
+                return [
+                    'status' => 422,
+                    'message' => 'Ce membre a encore des tâches en cours : réaffectez-les ou terminez-les avant de le retirer.',
+                ];
+            }
+
+            $projet->membres()->updateExistingPivot($data['nouveau_chef_id'], [
+                'fonction_id' => $fonctionChef->id,
+            ]);
+            $projet->membres()->updateExistingPivot($data['ancien_chef_id'], [
+                'date_retrait' => now()->toDateString(),
+            ]);
+
+            return ['ancien_chef_id' => $data['ancien_chef_id']];
+        });
+
+        if (isset($resultat['status'])) {
+            return response()->json(['message' => $resultat['message']], $resultat['status']);
+        }
+
+        $ancienChef = Personnel::with('user')->findOrFail($resultat['ancien_chef_id']);
+
+        if ($ancienChef->user && $ancienChef->user_id !== Auth::id()) {
+            $ancienChef->user->notify(new MembreRetire($projet));
+        }
+
+        return response()->json(['message' => 'Le rôle de chef a été transféré et l’ancien chef a été retiré du projet.']);
     }
 }

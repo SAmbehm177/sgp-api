@@ -7,8 +7,10 @@ use App\Models\Personnel;
 use App\Models\Projet;
 use App\Models\Tache;
 use App\Models\User;
+use App\Notifications\MembreRetire;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -107,6 +109,134 @@ class ProjectManagementApiTest extends TestCase
         $this->postJson('/api/projets/'.$projet->id.'/taches', $data)
             ->assertCreated()
             ->assertJsonPath('titre', 'Nouvelle tâche');
+    }
+
+    public function test_admin_can_atomically_transfer_project_lead_and_remove_previous_lead(): void
+    {
+        Notification::fake();
+
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $ancienChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $nouveauChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $fonctionMembre = Fonction::create(['libelle' => 'Membre']);
+        $projet->membres()->attach($ancienChef->id, ['fonction_id' => $fonctionChef->id]);
+        $projet->membres()->attach($nouveauChef->id, ['fonction_id' => $fonctionMembre->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/projets/'.$projet->id.'/transfert-chef', [
+            'ancien_chef_id' => $ancienChef->id,
+            'nouveau_chef_id' => $nouveauChef->id,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $ancienChef->id,
+            'date_retrait' => now()->toDateString(),
+        ]);
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $nouveauChef->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
+        Notification::assertSentTo($ancienChef->user, MembreRetire::class);
+    }
+
+    public function test_project_lead_transfer_requires_an_active_project_member_as_replacement(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $ancienChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $autrePersonnel = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $projet->membres()->attach($ancienChef->id, ['fonction_id' => $fonctionChef->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/projets/'.$projet->id.'/transfert-chef', [
+            'ancien_chef_id' => $ancienChef->id,
+            'nouveau_chef_id' => $autrePersonnel->id,
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Le nouveau chef doit être un membre actif de ce projet.');
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $ancienChef->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
+    }
+
+    public function test_admin_cannot_remove_project_lead_without_transferring_the_role(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $ancienChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $projet->membres()->attach($ancienChef->id, ['fonction_id' => $fonctionChef->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/projets/'.$projet->id.'/membres/'.$ancienChef->id)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Transférez le rôle à un membre actif avant de retirer le chef de projet.');
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $ancienChef->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
+    }
+
+    public function test_project_lead_cannot_be_removed_with_open_tasks_during_transfer(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $ancienChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $nouveauChef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $fonctionMembre = Fonction::create(['libelle' => 'Membre']);
+        $projet->membres()->attach($ancienChef->id, ['fonction_id' => $fonctionChef->id]);
+        $projet->membres()->attach($nouveauChef->id, ['fonction_id' => $fonctionMembre->id]);
+        $this->createTache($projet, $ancienChef, '2030-05-20');
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/projets/'.$projet->id.'/transfert-chef', [
+            'ancien_chef_id' => $ancienChef->id,
+            'nouveau_chef_id' => $nouveauChef->id,
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Ce membre a encore des tâches en cours : réaffectez-les ou terminez-les avant de le retirer.');
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $ancienChef->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $nouveauChef->id,
+            'fonction_id' => $fonctionMembre->id,
+            'date_retrait' => null,
+        ]);
+    }
+
+    public function test_non_admin_cannot_transfer_project_lead(): void
+    {
+        $user = User::factory()->create(['statut' => 'actif']);
+        $projet = $this->createProjet();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/projets/'.$projet->id.'/transfert-chef', [
+            'ancien_chef_id' => 1,
+            'nouveau_chef_id' => 2,
+        ])->assertForbidden();
     }
 
     public function test_duplicate_personnel_names_are_allowed_but_oversized_full_names_are_rejected(): void
