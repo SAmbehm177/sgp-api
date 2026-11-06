@@ -81,6 +81,23 @@ class ProjectManagementApiTest extends TestCase
             ->assertJsonPath('titre', 'Titre modifié');
     }
 
+    public function test_task_patch_accepts_only_changed_fields(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel($admin);
+        $projet = $this->createProjet();
+        $tache = $this->createTache($projet, $personnel, '2030-05-20');
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/taches/'.$tache->id, ['titre' => 'Titre modifié'])
+            ->assertOk()
+            ->assertJsonPath('titre', 'Titre modifié')
+            ->assertJsonPath('description', $tache->description);
+
+        $this->assertSame('2030-05-20', $tache->fresh()->date_echeance->toDateString());
+    }
+
     public function test_tasks_cannot_be_added_to_a_completed_project_until_it_is_reopened(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
@@ -250,11 +267,10 @@ class ProjectManagementApiTest extends TestCase
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/personnels', [
-            'nom' => str_repeat('N', 100),
+            'nom' => str_repeat('N', 192),
             'prenom' => str_repeat('P', 100),
+            'matricule' => 'MAT-TEST-001',
             'poste' => 'Membre',
-            'email' => 'personnel@example.test',
-            'password' => 'password123',
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('nom');
     }
