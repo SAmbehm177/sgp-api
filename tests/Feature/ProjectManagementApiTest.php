@@ -162,6 +162,46 @@ class ProjectManagementApiTest extends TestCase
         Notification::assertSentTo($ancienChef->user, MembreRetire::class);
     }
 
+    public function test_admin_can_change_an_active_members_function_without_removing_them(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionMembre = Fonction::create(['libelle' => 'Membre']);
+        $fonctionExpert = Fonction::create(['libelle' => 'Expert technique']);
+        $projet->membres()->attach($personnel->id, ['fonction_id' => $fonctionMembre->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/projets/'.$projet->id.'/membres/'.$personnel->id, [
+            'fonction_id' => $fonctionExpert->id,
+        ])->assertOk()
+            ->assertJsonPath('message', 'Fonction du membre modifiée.');
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $personnel->id,
+            'fonction_id' => $fonctionExpert->id,
+            'date_retrait' => null,
+        ]);
+    }
+
+    public function test_non_admin_cannot_change_a_members_function(): void
+    {
+        $user = User::factory()->create(['role' => 'user', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel($user);
+        $autrePersonnel = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonction = Fonction::create(['libelle' => 'Membre']);
+        $projet->membres()->attach($autrePersonnel->id, ['fonction_id' => $fonction->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->patchJson('/api/projets/'.$projet->id.'/membres/'.$autrePersonnel->id, [
+            'fonction_id' => $fonction->id,
+        ])->assertForbidden();
+    }
+
     public function test_project_lead_transfer_requires_an_active_project_member_as_replacement(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);

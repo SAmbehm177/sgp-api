@@ -115,6 +115,47 @@ class MembreController extends Controller
         return response()->json(['message' => 'Membre retiré du projet.']);
     }
 
+    public function modifierFonction(Request $request, Projet $projet, Personnel $personnel)
+    {
+        abort_unless(Auth::user()->estAdmin(), 403, 'Seul un administrateur peut modifier la fonction d’un membre.');
+
+        $data = $request->validate([
+            'fonction_id' => ['required', 'exists:fonctions,id'],
+        ]);
+        $fonction = Fonction::findOrFail($data['fonction_id']);
+
+        $erreur = DB::transaction(function () use ($projet, $personnel, $fonction): ?string {
+            Projet::whereKey($projet->id)->lockForUpdate()->firstOrFail();
+
+            $membreActif = $projet->membresActifs()
+                ->where('personnels.id', $personnel->id)
+                ->exists();
+
+            if (! $membreActif) {
+                abort(404, "Ce personnel n'est pas membre actif du projet.");
+            }
+
+            if (
+                $fonction->libelle === Fonction::CHEF_DE_PROJET
+                && $projet->chefs()->where('personnels.id', '!=', $personnel->id)->exists()
+            ) {
+                return 'Ce projet a déjà un chef de projet.';
+            }
+
+            $projet->membres()->updateExistingPivot($personnel->id, [
+                'fonction_id' => $fonction->id,
+            ]);
+
+            return null;
+        });
+
+        if ($erreur !== null) {
+            return response()->json(['message' => $erreur], 422);
+        }
+
+        return response()->json(['message' => 'Fonction du membre modifiée.']);
+    }
+
     public function transfererChef(Request $request, Projet $projet)
     {
         abort_unless(Auth::user()->estAdmin(), 403, 'Seul un administrateur peut transférer le rôle de chef de projet.');

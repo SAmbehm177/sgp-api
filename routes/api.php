@@ -31,6 +31,7 @@ Route::middleware(['auth:sanctum', 'can:active'])->group(function () {
         Route::apiResource('projets', ProjetController::class);
         Route::post('projets/{projet}/membres', [MembreController::class, 'store']);
         Route::post('projets/{projet}/transfert-chef', [MembreController::class, 'transfererChef']);
+        Route::patch('projets/{projet}/membres/{personnel}', [MembreController::class, 'modifierFonction']);
         Route::delete('projets/{projet}/membres/{personnel}', [MembreController::class, 'retirer']);
 
         Route::get('projets/{projet}/messages', [MessageController::class, 'index']);
