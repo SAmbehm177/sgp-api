@@ -315,6 +315,19 @@ class ProjectManagementApiTest extends TestCase
             ->assertJsonValidationErrors('nom');
     }
 
+    public function test_admin_user_list_exposes_personnel_matricule_at_top_level(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel($admin);
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/users')
+            ->assertOk()
+            ->assertJsonPath('data.0.matricule', $personnel->matricule)
+            ->assertJsonPath('data.0.personnel.matricule', $personnel->matricule);
+    }
+
     public function test_inactive_accounts_cannot_use_authenticated_api_routes(): void
     {
         $user = User::factory()->create(['statut' => 'inactif']);

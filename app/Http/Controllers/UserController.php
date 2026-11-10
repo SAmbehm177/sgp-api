@@ -12,7 +12,12 @@ class UserController extends Controller
     {
         return User::with('personnel:id,user_id,nom,prenom,matricule,poste')
             ->orderBy('name')
-            ->paginate(50);
+            ->paginate(50)
+            ->through(function (User $user): User {
+                $user->setAttribute('matricule', $user->personnel?->matricule);
+
+                return $user;
+            });
     }
 
     public function changerStatus(Request $request, User $user)
