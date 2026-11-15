@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\Projet;
 use App\Notifications\NouveauMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -32,6 +33,7 @@ class MessageController extends Controller
         $request->validate([
             'avant_id' => ['nullable', 'integer', 'min:0'],
             'apres_id' => ['nullable', 'integer', 'min:0'],
+            'apres_suppression_id' => ['nullable', 'integer', 'min:0'],
         ]);
 
         // Ouvrir la discussion vaut lecture : les notifications de nouveaux messages du projet sont marquées lues
@@ -41,11 +43,21 @@ class MessageController extends Controller
             ->update(['read_at' => now()]);
 
         $query = $projet->messages()->with([...self::AUTEUR, ...self::DESTINATAIRE]);
+        $suppressions = DB::table('message_suppressions')->where('projet_id', $projet->id);
+        $dernierIdSuppression = (clone $suppressions)->max('id') ?? 0;
+        $suppressionsDepuis = $request->filled('apres_suppression_id')
+            ? $suppressions
+                ->where('id', '>', $request->integer('apres_suppression_id'))
+                ->orderBy('id')
+                ->get(['id', 'message_id'])
+            : collect();
 
         if ($request->filled('apres_id')) {
             return [
                 'data' => $query->where('id', '>', $request->integer('apres_id'))->orderBy('id')->get(),
                 'a_plus_ancien' => false,
+                'suppressions' => $suppressionsDepuis,
+                'dernier_id_suppression' => $dernierIdSuppression,
             ];
         }
 
@@ -59,6 +71,8 @@ class MessageController extends Controller
         return [
             'data' => $messages->take(self::PAR_PAGE)->reverse()->values(),
             'a_plus_ancien' => $messages->count() > self::PAR_PAGE,
+            'suppressions' => $suppressionsDepuis,
+            'dernier_id_suppression' => $dernierIdSuppression,
         ];
     }
 
@@ -106,7 +120,16 @@ class MessageController extends Controller
             403
         );
 
-        $message->delete();
+        DB::transaction(function () use ($message, $projet): void {
+            DB::table('message_suppressions')->insert([
+                'projet_id' => $projet->id,
+                'message_id' => $message->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $message->delete();
+        });
 
         return response()->json(['message' => 'Message supprimé.']);
     }

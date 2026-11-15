@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Fonction;
+use App\Models\Message;
 use App\Models\Personnel;
 use App\Models\Projet;
 use App\Models\Tache;
@@ -81,6 +82,50 @@ class ProjectManagementApiTest extends TestCase
             ->assertJsonPath('titre', 'Titre modifié');
     }
 
+    public function test_project_creation_requires_and_assigns_an_active_project_lead(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $chef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+
+        Sanctum::actingAs($admin);
+
+        $data = [
+            'titre' => 'Projet avec chef',
+            'date_debut' => '2026-01-01',
+            'date_fin' => '2026-12-31',
+            'chef_id' => $chef->id,
+        ];
+
+        $this->postJson('/api/projets', $data)
+            ->assertCreated()
+            ->assertJsonPath('membres_actifs.0.id', $chef->id)
+            ->assertJsonPath('membres_actifs.0.pivot.fonction_id', Fonction::where('libelle', Fonction::CHEF_DE_PROJET)->value('id'));
+
+        $this->postJson('/api/projets', array_diff_key($data, ['chef_id' => true]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('chef_id');
+    }
+
+    public function test_migration_promotes_the_first_active_member_on_projects_without_a_lead(): void
+    {
+        $personnel = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionMembre = Fonction::create(['libelle' => Fonction::MEMBRE]);
+        $projet->membres()->attach($personnel->id, ['fonction_id' => $fonctionMembre->id]);
+
+        $migration = require database_path('migrations/2026_11_15_120000_assign_project_leads_to_existing_projects.php');
+        $migration->up();
+
+        $fonctionChef = Fonction::where('libelle', Fonction::CHEF_DE_PROJET)->firstOrFail();
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $personnel->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
+    }
+
     public function test_task_patch_accepts_only_changed_fields(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
@@ -119,13 +164,34 @@ class ProjectManagementApiTest extends TestCase
 
         $this->postJson('/api/projets/'.$projet->id.'/taches', $data)
             ->assertUnprocessable()
-            ->assertJsonPath('message', 'Ce projet est terminé : passez son statut à « En cours » pour pouvoir y ajouter des tâches.');
+            ->assertJsonPath('message', 'Ce projet est terminé : rouvrez-le avant d’y ajouter des tâches.');
 
         $projet->update(['statut' => 'en cours']);
 
         $this->postJson('/api/projets/'.$projet->id.'/taches', $data)
             ->assertCreated()
             ->assertJsonPath('titre', 'Nouvelle tâche');
+    }
+
+    public function test_task_cannot_be_reopened_in_a_cancelled_project(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = $this->createPersonnel($admin);
+        $projet = $this->createProjet();
+        $tache = $this->createTache($projet, $personnel, '2030-05-20');
+        Sanctum::actingAs($admin);
+
+        $projet->update(['statut' => 'annulé']);
+        $this->patchJson('/api/taches/'.$tache->id.'/status', ['statut' => 'terminé'])
+            ->assertOk()
+            ->assertJsonPath('statut', 'terminé');
+
+        $this->assertSame('annulé', $projet->fresh()->statut);
+        $this->patchJson('/api/taches/'.$tache->id.'/status', ['statut' => 'en cours'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Impossible de rouvrir une tâche dans un projet annulé.');
+
+        $this->assertSame('terminé', $tache->fresh()->statut);
     }
 
     public function test_admin_can_atomically_transfer_project_lead_and_remove_previous_lead(): void
@@ -200,6 +266,54 @@ class ProjectManagementApiTest extends TestCase
         $this->patchJson('/api/projets/'.$projet->id.'/membres/'.$autrePersonnel->id, [
             'fonction_id' => $fonction->id,
         ])->assertForbidden();
+    }
+
+    public function test_non_admin_can_only_add_members_with_the_member_function(): void
+    {
+        $chefUser = User::factory()->create(['role' => 'user', 'statut' => 'actif']);
+        $chef = $this->createPersonnel($chefUser);
+        $nouveauMembre = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $fonctionMembre = Fonction::create(['libelle' => Fonction::MEMBRE]);
+        $fonctionExpert = Fonction::create(['libelle' => 'Expert technique']);
+        $projet->membres()->attach($chef->id, ['fonction_id' => $fonctionChef->id]);
+
+        Sanctum::actingAs($chefUser);
+
+        $this->postJson('/api/projets/'.$projet->id.'/membres', [
+            'personnel_id' => $nouveauMembre->id,
+            'fonction_id' => $fonctionExpert->id,
+        ])->assertForbidden();
+
+        $this->postJson('/api/projets/'.$projet->id.'/membres', [
+            'personnel_id' => $nouveauMembre->id,
+            'fonction_id' => $fonctionMembre->id,
+        ])->assertCreated();
+    }
+
+    public function test_admin_cannot_demote_the_only_active_project_lead(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $chef = $this->createPersonnel(User::factory()->create(['statut' => 'actif']));
+        $projet = $this->createProjet();
+        $fonctionChef = Fonction::create(['libelle' => Fonction::CHEF_DE_PROJET]);
+        $fonctionMembre = Fonction::create(['libelle' => Fonction::MEMBRE]);
+        $projet->membres()->attach($chef->id, ['fonction_id' => $fonctionChef->id]);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/projets/'.$projet->id.'/membres/'.$chef->id, [
+            'fonction_id' => $fonctionMembre->id,
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Désignez d’abord un autre chef de projet avant de modifier cette fonction.');
+
+        $this->assertDatabaseHas('personnel_projet', [
+            'projet_id' => $projet->id,
+            'personnel_id' => $chef->id,
+            'fonction_id' => $fonctionChef->id,
+            'date_retrait' => null,
+        ]);
     }
 
     public function test_project_lead_transfer_requires_an_active_project_member_as_replacement(): void
@@ -315,6 +429,32 @@ class ProjectManagementApiTest extends TestCase
             ->assertJsonValidationErrors('nom');
     }
 
+    public function test_new_personnel_access_is_always_created_as_a_member(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
+        $personnel = Personnel::create([
+            'nom' => 'Nouveau',
+            'prenom' => 'Membre',
+            'matricule' => 'MAT-NOUVEAU',
+            'poste' => 'Membre',
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/personnels/'.$personnel->id.'/acces', [
+            'email' => 'new-member@example.test',
+            'password' => 'password-123',
+            'role' => 'admin',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
+
+        $this->postJson('/api/personnels/'.$personnel->id.'/acces', [
+            'email' => 'new-member@example.test',
+            'password' => 'password-123',
+        ])->assertCreated()
+            ->assertJsonPath('user.role', 'user');
+    }
+
     public function test_admin_user_list_exposes_personnel_matricule_at_top_level(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'statut' => 'actif']);
@@ -326,6 +466,38 @@ class ProjectManagementApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.matricule', $personnel->matricule)
             ->assertJsonPath('data.0.personnel.matricule', $personnel->matricule);
+    }
+
+    public function test_message_deletions_are_included_in_the_discussion_poll_for_other_members(): void
+    {
+        $auteur = User::factory()->create(['statut' => 'actif']);
+        $lecteur = User::factory()->create(['statut' => 'actif']);
+        $personnelAuteur = $this->createPersonnel($auteur);
+        $personnelLecteur = $this->createPersonnel($lecteur);
+        $projet = $this->createProjet();
+        $fonctionMembre = Fonction::create(['libelle' => Fonction::MEMBRE]);
+        $projet->membres()->attach($personnelAuteur->id, ['fonction_id' => $fonctionMembre->id]);
+        $projet->membres()->attach($personnelLecteur->id, ['fonction_id' => $fonctionMembre->id]);
+        $message = Message::create([
+            'projet_id' => $projet->id,
+            'user_id' => $auteur->id,
+            'contenu' => 'À supprimer',
+        ]);
+
+        Sanctum::actingAs($lecteur);
+        $this->getJson('/api/projets/'.$projet->id.'/messages')
+            ->assertOk()
+            ->assertJsonPath('dernier_id_suppression', 0);
+
+        Sanctum::actingAs($auteur);
+        $this->deleteJson('/api/messages/'.$message->id)->assertOk();
+
+        Sanctum::actingAs($lecteur);
+        $this->getJson('/api/projets/'.$projet->id.'/messages?apres_id='.$message->id.'&apres_suppression_id=0')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('suppressions.0.message_id', $message->id)
+            ->assertJsonPath('dernier_id_suppression', 1);
     }
 
     public function test_inactive_accounts_cannot_use_authenticated_api_routes(): void

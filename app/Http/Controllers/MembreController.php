@@ -26,6 +26,10 @@ class MembreController extends Controller
 
         $fonction = Fonction::findOrFail($data['fonction_id']);
 
+        if (! Auth::user()->estAdmin() && $fonction->libelle !== Fonction::MEMBRE) {
+            abort(403, 'Seul un administrateur peut attribuer une fonction autre que « Membre ».');
+        }
+
         // Vérification + écriture dans une même transaction, avec un verrou sur la ligne du projet :
         // deux ajouts simultanés ne peuvent plus créer deux chefs de projet.
         $erreur = DB::transaction(function () use ($projet, $data, $fonction): ?string {
@@ -140,6 +144,11 @@ class MembreController extends Controller
                 && $projet->chefs()->where('personnels.id', '!=', $personnel->id)->exists()
             ) {
                 return 'Ce projet a déjà un chef de projet.';
+            }
+
+            $estChef = $projet->chefs()->where('personnels.id', $personnel->id)->exists();
+            if ($estChef && $fonction->libelle !== Fonction::CHEF_DE_PROJET) {
+                return 'Désignez d’abord un autre chef de projet avant de modifier cette fonction.';
             }
 
             $projet->membres()->updateExistingPivot($personnel->id, [

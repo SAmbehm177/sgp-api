@@ -17,11 +17,16 @@ class PersonnelController extends Controller
         $data = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'sans_acces' => ['nullable', 'boolean'],
+            'avec_acces' => ['nullable', 'boolean'],
         ]);
         $recherche = trim($data['q'] ?? '');
 
         return Personnel::select('id', 'nom', 'prenom', 'matricule', 'poste', 'user_id')
             ->when($request->boolean('sans_acces'), fn ($query) => $query->whereNull('user_id'))
+            ->when(
+                $request->boolean('avec_acces'),
+                fn ($query) => $query->whereHas('user', fn ($user) => $user->where('statut', 'actif'))
+            )
             ->when($recherche !== '', function ($query) use ($recherche) {
                 $motif = '%'.addcslashes($recherche, '%_\\').'%';
 
@@ -77,7 +82,7 @@ class PersonnelController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email', 'max:191', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'max:72'],
-            'role' => ['nullable', Rule::in(['user', 'admin'])],
+            'role' => ['prohibited'],
         ]);
 
         // Verrou sur la fiche : deux demandes simultanées ne peuvent pas créer deux comptes
@@ -96,7 +101,7 @@ class PersonnelController extends Controller
 
             // Mot de passe provisoire : l'utilisateur devra le remplacer dès sa première connexion
             $user->forceFill([
-                'role' => ($data['role'] ?? 'user') === 'admin' ? 'admin' : 'user',
+                'role' => 'user',
                 'must_change_password' => true,
             ])->save();
 

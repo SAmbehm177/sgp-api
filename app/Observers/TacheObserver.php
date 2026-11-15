@@ -54,7 +54,7 @@ class TacheObserver
      */
     private function synchroniserStatutProjet(Tache $tache): void
     {
-        $projet = $tache->projet;
+        $projet = $tache->projet()->first();
 
         if (! $projet || $projet->statut === 'annulé') {
             return;

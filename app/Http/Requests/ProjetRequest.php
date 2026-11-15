@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProjetRequest extends FormRequest
@@ -59,6 +60,13 @@ class ProjetRequest extends FormRequest
             'description' => ['sometimes', 'nullable', 'string'],
             'date_debut' => [$required, 'date', $dateDebut],
             'date_fin' => [$required, 'date', $dateFin],
+            'chef_id' => [
+                $this->isMethod('post') ? 'required' : 'prohibited',
+                'integer',
+                Rule::exists('personnels', 'id')->where(
+                    fn ($query) => $query->whereIn('user_id', DB::table('users')->select('id')->where('statut', 'actif'))
+                ),
+            ],
             'statut' => [
                 'sometimes',
                 Rule::in(['en cours', 'terminé', 'annulé']),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProjetRequest;
 use App\Models\Fonction;
+use App\Models\Personnel;
 use App\Models\Projet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -63,7 +64,35 @@ public function index(Request $request)
 
     public function store(ProjetRequest $request)
     {
-        return response()->json(Projet::create($request->validated()), 201);
+        $data = $request->validated();
+        $chefId = $data['chef_id'];
+        unset($data['chef_id']);
+
+        $fonctionChef = Fonction::where('libelle', Fonction::CHEF_DE_PROJET)->first();
+        if (! $fonctionChef) {
+            return response()->json(['message' => 'La fonction « Chef de projet » est introuvable.'], 422);
+        }
+
+        $projet = DB::transaction(function () use ($data, $chefId, $fonctionChef) {
+            $chef = Personnel::whereKey($chefId)
+                ->whereHas('user', fn ($query) => $query->where('statut', 'actif'))
+                ->lockForUpdate()
+                ->first();
+            if (! $chef) {
+                return null;
+            }
+
+            $projet = Projet::create($data);
+            $projet->membres()->attach($chef->id, ['fonction_id' => $fonctionChef->id]);
+
+            return $projet;
+        });
+
+        if (! $projet) {
+            return response()->json(['message' => 'Le chef de projet doit avoir un compte personnel.'], 422);
+        }
+
+        return response()->json($projet->load('membresActifs'), 201);
     }
 
     public function show(Projet $projet)

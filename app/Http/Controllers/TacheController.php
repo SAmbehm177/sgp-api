@@ -18,20 +18,22 @@ class TacheController extends Controller
         return $projet->taches()->with('responsable')->latest()->paginate(20);
     }
 
-public function store(TacheRequest $request, Projet $projet)
-{
-    if (in_array($projet->statut, ['terminé', 'annulé'], true)) {
-        $message = $projet->statut === 'terminé'
-            ? 'Ce projet est terminé : passez son statut à « En cours » pour pouvoir y ajouter des tâches.'
-            : "Ce projet est annulé : impossible d'ajouter une tâche.";
+    public function store(TacheRequest $request, Projet $projet)
+    {
+        if (in_array($projet->statut, ['terminé', 'annulé'], true)) {
+            $message = $projet->statut === 'terminé'
+                ? ($request->user()->estAdmin()
+                    ? 'Ce projet est terminé : rouvrez-le avant d’y ajouter des tâches.'
+                    : 'Ce projet est terminé : contactez un administrateur pour le rouvrir avant d’y ajouter des tâches.')
+                : "Ce projet est annulé : impossible d'ajouter une tâche.";
 
-        abort(422, $message);
+            abort(422, $message);
+        }
+
+        $tache = $projet->taches()->create($request->validated());
+
+        return response()->json($tache->load('responsable'), 201);
     }
-
-    $tache = $projet->taches()->create($request->validated());
-
-    return response()->json($tache->load('responsable'), 201);
-}
 
     public function show(Tache $tache)
     {
@@ -63,6 +65,10 @@ public function store(TacheRequest $request, Projet $projet)
 
         $user = $request->user();
         $estResponsable = $tache->responsable->user_id === $user->id;
+
+        if ($tache->projet()->value('statut') === 'annulé' && $data['statut'] === 'en cours') {
+            abort(422, 'Impossible de rouvrir une tâche dans un projet annulé.');
+        }
 
         // Il faut être membre actif du projet (ou admin) : un membre retiré ne peut plus agir sur ses anciennes tâches
         abort_unless(

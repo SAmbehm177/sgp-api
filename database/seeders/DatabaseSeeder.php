@@ -35,7 +35,7 @@ class DatabaseSeeder extends Seeder
         );
 
         Fonction::updateOrCreate(
-            ['libelle' => 'Membre'],
+            ['libelle' => Fonction::MEMBRE],
             ['description' => 'Participe au projet']
         );
     }
