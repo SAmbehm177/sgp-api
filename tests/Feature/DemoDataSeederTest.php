@@ -22,12 +22,23 @@ class DemoDataSeederTest extends TestCase
 
         $projets = Projet::whereHas('membres', fn ($query) => $query->where('matricule', 'like', 'DEMO-%'));
         $this->assertSame(18, Personnel::where('matricule', 'like', 'DEMO-%')->count());
-        $this->assertSame(10, $projets->count());
+        $this->assertSame(11, $projets->count());
 
         $projetIds = $projets->pluck('id');
-        $this->assertSame(80, Tache::whereIn('projet_id', $projetIds)->count());
-        $this->assertSame(40, Message::whereIn('projet_id', $projetIds)->count());
+        $this->assertSame(88, Tache::whereIn('projet_id', $projetIds)->count());
+        $this->assertSame(44, Message::whereIn('projet_id', $projetIds)->count());
         $this->assertSame(5, Projet::findOrFail($projetIds->first())->membresActifs()->count());
+
+        $projetEnProgression = Projet::where('titre', 'Suivi des équipements')->firstOrFail();
+        $this->assertSame(2, $projetEnProgression->taches()->where('statut', 'terminé')->count());
+        $this->assertSame(5, $projetEnProgression->taches()->where('statut', 'en cours')->count());
+        $this->assertSame(
+            0,
+            $projetEnProgression->taches()
+                ->where('statut', 'en cours')
+                ->whereDate('date_echeance', '<', today())
+                ->count()
+        );
 
         foreach ([
             ['DEMO-0001', 'Ariel', 'Traore'],
@@ -51,9 +62,9 @@ class DemoDataSeederTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertSame(18, Personnel::where('matricule', 'like', 'DEMO-%')->count());
-        $this->assertSame(10, Projet::whereHas('membres', fn ($query) => $query->where('matricule', 'like', 'DEMO-%'))->count());
-        $this->assertSame(80, Tache::whereIn('projet_id', $projetIds)->count());
-        $this->assertSame(40, Message::whereIn('projet_id', $projetIds)->count());
+        $this->assertSame(11, Projet::whereHas('membres', fn ($query) => $query->where('matricule', 'like', 'DEMO-%'))->count());
+        $this->assertSame(88, Tache::whereIn('projet_id', $projetIds)->count());
+        $this->assertSame(44, Message::whereIn('projet_id', $projetIds)->count());
         $this->assertSame(
             'Ariel Traore',
             Personnel::where('matricule', 'DEMO-0001')->firstOrFail()->user->fresh()->name

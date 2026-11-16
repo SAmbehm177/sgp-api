@@ -45,6 +45,7 @@ class DemoDataSeeder extends Seeder
         ['Migration des données', 'Préparation et transfert des données vers la nouvelle plateforme.', 'en cours'],
         ['Outil de planification', 'Planification des interventions et suivi des disponibilités.', 'annulé'],
         ['Tableau de pilotage', 'Indicateurs consolidés pour le suivi des activités et des objectifs.', 'en cours'],
+        ['Suivi des équipements', 'Organisation du suivi des équipements et de leur maintenance.', 'en cours', true],
     ];
 
     private const TACHES = [
@@ -71,7 +72,9 @@ class DemoDataSeeder extends Seeder
         $fonctionMembre = Fonction::where('libelle', Fonction::MEMBRE)->firstOrFail();
         $personnels = $this->creerPersonnels();
 
-        foreach (self::PROJETS as $index => [$titre, $description, $statut]) {
+        foreach (self::PROJETS as $index => $donneesProjet) {
+            [$titre, $description, $statut] = $donneesProjet;
+            $sansRetard = $donneesProjet[3] ?? false;
             $debut = now()->copy()->subMonths(($index % 6) + 1)->startOfMonth();
             $projet = Projet::updateOrCreate(
                 ['titre' => $titre],
@@ -84,7 +87,7 @@ class DemoDataSeeder extends Seeder
             );
 
             $membres = $this->affecterMembres($projet, $personnels, $index, $fonctionChef->id, $fonctionMembre->id);
-            $this->creerTaches($projet, $membres, $debut, $statut);
+            $this->creerTaches($projet, $membres, $debut, $statut, $sansRetard);
             $this->creerMessages($projet, $membres);
         }
     }
@@ -163,7 +166,13 @@ class DemoDataSeeder extends Seeder
     /**
      * @param  list<Personnel>  $membres
      */
-    private function creerTaches(Projet $projet, array $membres, $debut, string $statutProjet): void
+    private function creerTaches(
+        Projet $projet,
+        array $membres,
+        $debut,
+        string $statutProjet,
+        bool $sansRetard = false
+    ): void
     {
         $statuts = match ($statutProjet) {
             'terminé' => array_fill(0, count(self::TACHES), 'terminé'),
@@ -172,9 +181,11 @@ class DemoDataSeeder extends Seeder
         };
         $priorites = ['haute', 'moyenne', 'basse'];
 
-        Tache::withoutEvents(function () use ($projet, $membres, $debut, $statuts, $priorites): void {
+        Tache::withoutEvents(function () use ($projet, $membres, $debut, $statuts, $priorites, $sansRetard): void {
             foreach (self::TACHES as $index => [$titre, $description]) {
-                $dateDebut = $debut->copy()->addDays($index * 5);
+                $dateDebut = $sansRetard && $statuts[$index] === 'en cours'
+                    ? now()->copy()->startOfDay()
+                    : $debut->copy()->addDays($index * 5);
                 $projet->taches()->updateOrCreate(
                     ['titre' => $titre],
                     [
