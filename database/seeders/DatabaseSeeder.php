@@ -38,5 +38,7 @@ class DatabaseSeeder extends Seeder
             ['libelle' => Fonction::MEMBRE],
             ['description' => 'Participe au projet']
         );
+
+        $this->call(DemoDataSeeder::class);
     }
 }

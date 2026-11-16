@@ -91,6 +91,10 @@ return [
         'password' => env('SGP_ADMIN_PASSWORD'),
     ],
 
+    'seed_demo' => [
+        'password' => env('SGP_DEMO_PASSWORD') ?: (env('APP_ENV') === 'local' ? 'Demo123!' : null),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

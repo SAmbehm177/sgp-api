@@ -521,10 +521,11 @@ class ProjectManagementApiTest extends TestCase
         $seeder->run();
         $seeder->run();
 
-        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('users', 19);
         $this->assertDatabaseCount('fonctions', 2);
-        $this->assertSame('admin', User::firstOrFail()->role);
-        $this->assertTrue(password_verify('un-secret-de-test', User::firstOrFail()->password));
+        $admin = User::where('email', 'admin@example.test')->firstOrFail();
+        $this->assertSame('admin', $admin->role);
+        $this->assertTrue(password_verify('un-secret-de-test', $admin->password));
     }
 
     private function createPersonnel(User $user): Personnel
